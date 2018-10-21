@@ -17,7 +17,7 @@ class CartController extends Controller
             'token' => 'required',
         ]);
 
-        if($validate)lkjlk
+        if($validate)
         {
             $userID = $this->getUserIDByToken($request->token);
             if($userID)
