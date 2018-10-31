@@ -9,7 +9,7 @@ use App\Http\Controllers\Controller;
 
 class UserController extends Controller
 {
-    public  function  index()
+    public function index()
     {
         $users = Users::all();
         return ($users->display_name);
@@ -18,9 +18,9 @@ class UserController extends Controller
     public function login(Request $request)
     {
         //Validation
-        $this->validate($request,[
-            'username'=>'required',
-            'password'=>'required'
+        $this->validate($request, [
+            'username' => 'required',
+            'password' => 'required'
         ]);
 
         $url = 'https://offarea.ir/offareaApi.php';
@@ -49,12 +49,30 @@ class UserController extends Controller
 
         // close connection
         curl_close($ch);
-        //return response()->json($result);
-        // echo $result;
-        // return wpUser::where('ID', 15)->first();
+
+        if ($result) {
+            $user = Users::where('user_login', $request->username)->first();
+            $meta = UsersMeta::where('meta_key', 'api_token')->where('user_id', $user->ID)->first();
+            $data = array(
+                'status' => 1,
+                'message' => 'با موفقیت وارد شدید',
+                'result' => array(
+                    'user' => array(
+                        'name' => $user->display_name,
+                        'apiToken' => $meta->meta_value,
+                        'roles' => 1
+                    )
+
+                )
+                );
+            return \response([
+                $data
+            ]);
+        }
 
 
     }
+
     public function register(Request $request)
     {
         $validData = $this->validate($request,
@@ -65,33 +83,31 @@ class UserController extends Controller
                 'user_pass' => 'required|string|min:4',
             ]);
 
-        if(preg_match("/^09[0-9]{9}$/", $request->billing_phone))
-        {
-            if($this->isUnique($request->billing_phone))
-            {
+        if (preg_match("/^09[0-9]{9}$/", $request->billing_phone)) {
+            if ($this->isUnique($request->billing_phone)) {
                 $newUser = Users::create([
                     'user_login' => $validData['user_login'],
                     'user_pass' => $this->createWpPassword($validData['user_pass']),
-                    'user_nicename'=> $validData['user_login'],
-                    'user_email'=> $validData['user_email'],
+                    'user_nicename' => $validData['user_login'],
+                    'user_email' => $validData['user_email'],
                     'user_registered' => date('Y-m-d H:i:s'),
                     'user_status' => '0',
                     'display_name' => $validData['user_login']
                 ]);
                 $newUserPhone = UsersMeta::create([
                     'user_id' => $newUser->ID,
-                    'meta_key'=> 'billing_phone',
-                    'meta_value'=> $validData['billing_phone']
+                    'meta_key' => 'billing_phone',
+                    'meta_value' => $validData['billing_phone']
                 ]);
                 $newUserApiToken = UsersMeta::create([
                     'user_id' => $newUser->ID,
-                    'meta_key'=> 'api_token',
-                    'meta_value'=> $this->getToken()
+                    'meta_key' => 'api_token',
+                    'meta_value' => $this->getToken()
                 ]);
                 $newUser_register_via_app = UsersMeta::create([
                     'user_id' => $newUser->ID,
-                    'meta_key'=> 'registered_via_app',
-                    'meta_value'=> 'yes'
+                    'meta_key' => 'registered_via_app',
+                    'meta_value' => 'yes'
                 ]);
                 return \response([
                     'result' => 'true',
@@ -99,34 +115,32 @@ class UserController extends Controller
                     'api_token' => $newUserApiToken->meta_value,
                     'status' => '200'
                 ]);
-            }
-            else
-            {
+            } else {
                 return \response([
                     'result' => 'false',
                     'message' => 'شماره همراه درج شده تکراری است'
                 ]);
             }
 
-        }
-        else
+        } else
             return \response([
                 'result' => 'false',
                 'message' => 'شماره همراه درج شده نامعتبر است'
             ]);
 
 
-
         //return true;
     }
+
     public function isUnique(string $phone)
     {
-        $meta = UsersMeta::where('meta_key', 'billing_phone')->where('meta_value' , $phone)->first();
-        if($meta)
+        $meta = UsersMeta::where('meta_key', 'billing_phone')->where('meta_value', $phone)->first();
+        if ($meta)
             return false;
         else
             return true;
     }
+
     public function createWpPassword(string $pass)
     {
         $url = 'https://offarea.ir/offareaApi.php';
@@ -149,6 +163,7 @@ class UserController extends Controller
         curl_close($curl);
         return $resp;
     }
+
     public function getToken()
     {
         $url = 'https://offarea.ir/offareaApi.php';
