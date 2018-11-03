@@ -11,8 +11,11 @@ class PostController extends Controller
 {
     public function all_product_summary(Request $request)
     {
-        return ProductSummary::collection(Products::all()
-             ->where('post_type', 'product')
-             ->where('post_status', 'publish'));
+        return \response([
+            ProductSummary::collection(Products::all()
+                ->where('post_type', 'product')
+                ->where('post_status', 'publish'))
+        ]);
+
     }
 }

@@ -20,10 +20,10 @@ Route::prefix('v1')->namespace('Api\v1')->group(function ()
     Route::post('/register', 'UserController@register');
 });
 
-Route::prefix('v1/products')->namespace('Api\v1')->group(function ()
+Route::prefix('v1/product')->namespace('Api\v1')->group(function ()
 {
-    Route::get('/products', 'PostController@all_product_summary');
-    Route::get('/products/{product}', 'PostController@single');
+    Route::get('/all', 'PostController@all_product_summary');
+    Route::get('/{product}', 'PostController@single');
 });
 
 Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()
@@ -37,6 +37,11 @@ Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()
 Route::prefix('v1/order')->namespace('Api\v1')->group(function ()
 {
 
+});
+
+Route::prefix('v1/vendor')->namespace('Api\v1')->group(function ()
+{
+    Route::get('/all', 'VendorController@all');
 });
 
 Route::prefix('v1/session')->namespace('Api\v1')->group(function ()
