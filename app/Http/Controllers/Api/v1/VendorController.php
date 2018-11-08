@@ -13,7 +13,7 @@ class VendorController extends Controller
     public function all(Request $request)
     {
         $result = DB::select("select 
-                  sum(((IFNULL(O.meta_value, O2.meta_value)  * I1.meta_value) - (IFNULL(T.meta_value, T2.meta_value) * I1.meta_value))) as vendorShare, 
+                  sum(((IFNULL(O.meta_value, O2.meta_value)  * I1.meta_value) - (IFNULL(T.meta_value, T2.meta_value) * I1.meta_value))) as VendorShare, 
                   sum(IFNULL(O.meta_value, O2.meta_value)  * I1.meta_value ) as Sales,
                   sum(IFNULL(T.meta_value, T2.meta_value) * I1.meta_value) as Profit,
                   UU.ID as VendorID, 
@@ -44,7 +44,7 @@ class VendorController extends Controller
                     order by UU.ID");
 
         return \response(
-            $result
+            json_encode($result)
         );
 
     }
