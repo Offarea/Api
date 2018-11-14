@@ -127,11 +127,13 @@ class CartController extends Controller
                         $i++;
                     }
                 }
-                return \response([
-                    'message' => 'اطلاعات کارت با موفقیت از دیتابیس استخراج شد',
+                return \response(
+                    json_encode
+                    (
+                     ['message' => 'اطلاعات کارت با موفقیت از دیتابیس استخراج شد',
                     'content' => $cartArray,
-                    'status' => 200
-                ]);
+                    'status' => 200]
+                    ));
             } else {
                 return \response([
                     'result' => 'false',

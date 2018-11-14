@@ -65,9 +65,9 @@ class UserController extends Controller
 
                 )
                 );
-            return \response([
-                $data
-            ]);
+            return \response(
+                json_encode($data)
+            );
         }
 
 
