@@ -33,6 +33,10 @@ class ProductSummary extends Resource
             'offer_percent' => $offer_percent,
             'total_sales' => $total_sales,
             'deadline' => $deadline,
+            'status' => 'Active',
+            'category' => array('category_id'=>'', 'category_title'=>''),
+            'city' => '',
+            'location' => array('langitude'=>'', 'latitude' => ''),
             'image_url' => $this->findProductImageUrlByID($this->ID)
         ];
     }
