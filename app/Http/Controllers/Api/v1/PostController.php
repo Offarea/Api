@@ -7,6 +7,7 @@ use App\Models\v1\Products;
 use App\Models\v1\ProductsMeta;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\DB;
 
 class PostController extends Controller
 {
@@ -23,23 +24,26 @@ class PostController extends Controller
             $post = Products::where('ID', $product->ID)
                 ->where('post_type', 'product')->first();
 
-            $offerProductPrice =
+            $offerProductPrice = $this->getOfferProductPrice($post);
             $regularProductPrice = $this->getRegularProductPrice($post);
             $offer_percent = $this->getOfferPercent($offerProductPrice, $regularProductPrice);
             $total_sales = $this->getTotalSales($post);
             $deadline = $this->getDeadline($post);
+            $categories = $this->get_categoriesByProductID($product->ID);
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
             $result[$counter]['description'] = $product->post_excerpt;
             $result[$counter]['regular_price'] = $regularProductPrice;
-            $result[$counter]['offer_price'] = $this->getOfferProductPrice($post);
+            $result[$counter]['offer_price'] = $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
             $result[$counter]['total_sales'] = $total_sales;
             $result[$counter]['deadline'] = $deadline;
+            $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
             $result[$counter]['status'] = 'Active';
-            $result[$counter]['category'] = array('category_id' => '', 'category_title' => '');
+            $result[$counter]['category'] = $categories;
             $result[$counter]['city'] = '';
+            $result[$counter]['address'] = $this->getAddress($product->ID);
             $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
 
@@ -52,9 +56,48 @@ class PostController extends Controller
 
     }
 
+    public function getAddress($product_id)
+    {
+        return ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', 'melocate')->first()->meta_value;
+    }
+
+    public function getBarcodeExpireDate($product_id)
+    {
+        return ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', '_woo_vou_exp_date')->first()->meta_value;
+    }
+
+    public function get_categoriesByProductID($product_id)
+    {
+        $cats = DB::select("SELECT A.term_id, A.name
+                     FROM wp_terms A
+                     LEFT JOIN wp_term_taxonomy B ON A.term_id = B.term_id
+		             left join wp_term_relationships C on C.term_taxonomy_id = B.term_taxonomy_id
+                     WHERE B.taxonomy = 'product_cat'
+		             and C.object_id = " . $product_id);
+
+        $product_cats = array();
+        $counter = 0;
+        foreach ($cats as $cat)
+        {
+            $product_cats[$counter]['category_id'] = $cat->term_id;
+            $product_cats[$counter]['category_title'] = $cat->name;
+            $counter++;
+        }
+        return $product_cats;
+    }
+
     public function get_categories(Request $request)
     {
+        $result = DB::select("SELECT wp_terms.term_id, wp_terms.name 
+                  FROM wp_terms 
+                  LEFT JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id
+                  WHERE wp_term_taxonomy.taxonomy = 'product_cat';");
 
+        return json_encode(
+            $result
+        );
     }
 
     public function single(Request $request)
@@ -87,7 +130,14 @@ class PostController extends Controller
         if ($meta)
             return $meta->meta_value;
         else
-            return 0;
+        {
+            $variation = Products::where('post_parent', $post->ID)
+                ->where('post_type', 'product_variation')->first();
+
+            $var_meta = ProductsMeta::where('post_id', $variation->ID)
+                ->where('meta_key', '_regular_price')->first();
+            return $var_meta->meta_value;
+        }
     }
 
     public function getOfferProductPrice($post)
