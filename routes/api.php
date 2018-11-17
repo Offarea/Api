@@ -49,3 +49,8 @@ Route::prefix('v1/session')->namespace('Api\v1')->group(function ()
 {
     Route::post('/get_user_session', 'SessionController@get_user_session');
 });
+
+Route::prefix('v1/comment')->namespace('Api\v1')->group(function ()
+{
+    Route::post('/get_comments/{product_id}', 'CommentController@get_comments');
+});
