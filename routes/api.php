@@ -25,6 +25,7 @@ Route::prefix('v1/product')->namespace('Api\v1')->group(function ()
     Route::post('/all', 'PostController@all_product_summary');
     Route::get('/{product}', 'PostController@single');
     Route::post('/categories', 'PostController@get_categories');
+    Route::post('/cities', 'PostController@get_cities');
 });
 
 Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()

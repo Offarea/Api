@@ -30,6 +30,7 @@ class PostController extends Controller
             $total_sales = $this->getTotalSales($post);
             $deadline = $this->getDeadline($post);
             $categories = $this->get_categoriesByProductID($product->ID);
+            $cities = $this->get_citiesByProductID($product->ID);
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
@@ -42,7 +43,7 @@ class PostController extends Controller
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
             $result[$counter]['status'] = 'Active';
             $result[$counter]['category'] = $categories;
-            $result[$counter]['city'] = '';
+            $result[$counter]['city'] = $cities;
             $result[$counter]['address'] = $this->getAddress($product->ID);
             $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
@@ -88,9 +89,41 @@ class PostController extends Controller
         return $product_cats;
     }
 
+    public function get_citiesByProductID($product_id)
+    {
+        $cities = DB::select("SELECT A.term_id, A.name
+                     FROM wp_terms A
+                     LEFT JOIN wp_term_taxonomy B ON A.term_id = B.term_id
+		             left join wp_term_relationships C on C.term_taxonomy_id = B.term_taxonomy_id
+                     WHERE B.taxonomy = 'location'
+		             and C.object_id = " . $product_id);
+
+        $product_cities = array();
+        $counter = 0;
+        foreach ($cities as $city)
+        {
+            $product_cities[$counter]['city_id'] = $city->term_id;
+            $product_cities[$counter]['city_title'] = $city->name;
+            $counter++;
+        }
+        return $product_cities;
+    }
+
+    public function get_cities(Request $request)
+    {
+        $result = DB::select("SELECT wp_terms.term_id as city_id, wp_terms.name as city_title
+                  FROM wp_terms 
+                  LEFT JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id
+                  WHERE wp_term_taxonomy.taxonomy = 'location';");
+
+        return json_encode(
+            $result
+        );
+    }
+
     public function get_categories(Request $request)
     {
-        $result = DB::select("SELECT wp_terms.term_id, wp_terms.name 
+        $result = DB::select("SELECT wp_terms.term_id as category_id, wp_terms.name as category_title
                   FROM wp_terms 
                   LEFT JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id
                   WHERE wp_term_taxonomy.taxonomy = 'product_cat';");
