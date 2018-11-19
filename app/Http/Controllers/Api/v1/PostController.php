@@ -10,6 +10,7 @@ use App\Models\v1\UsersMeta;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PostController extends Controller
 {
@@ -33,6 +34,7 @@ class PostController extends Controller
             $deadline = $this->getDeadline($post);
             $categories = $this->get_categoriesByProductID($product->ID);
             $cities = $this->get_citiesByProductID($product->ID);
+            $location = $this->get_locationByProductID($product->ID);
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
@@ -41,14 +43,16 @@ class PostController extends Controller
             $result[$counter]['offer_price'] = $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
             $result[$counter]['total_sales'] = $total_sales;
-            $result[$counter]['deadline'] = $deadline;
+            $result[$counter]['deadline_in_seconds'] = $deadline;
+            $result[$counter]['purchase_expire_date'] = $this->getPurchaseDeadlineDate($product->ID);
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
             $result[$counter]['status'] = 'Active';
             $result[$counter]['category'] = $categories;
             $result[$counter]['city'] = $cities;
             $result[$counter]['address'] = $this->getAddress($product->ID);
-            $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
+            $result[$counter]['location'] = $location;
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
+            $result[$counter]['image_gallery_url'] = '';
 
             $counter++;
         }
@@ -57,6 +61,24 @@ class PostController extends Controller
             $result
         );
 
+    }
+
+    public function get_locationByProductID($product_id)
+    {
+        $longitude = ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', '_longitude')->first();
+
+        $latitude = ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', '_latitude')->first();
+
+        if ($latitude and $longitude) {
+            $location = array('longitude' => $longitude, 'latitude' => $latitude);
+            return $location;
+        } else
+            return
+                [
+                    'longitude' => 'N/A', 'latitude' => 'N/A'
+                ];
     }
 
     public function getAddress($product_id)
@@ -165,6 +187,7 @@ class PostController extends Controller
             $result[$counter]['offer_percent'] = $offer_percent;
             $result[$counter]['total_sales'] = $total_sales;
             $result[$counter]['deadline'] = $deadline;
+            $result[$counter]['purchase_expire_date'] = $this->getPurchaseDeadlineDate($product->ID);
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
             $result[$counter]['status'] = 'Active';
             $result[$counter]['category'] = $categories;
@@ -191,11 +214,10 @@ class PostController extends Controller
         $result = array();
         $counter = 0;
 
-        foreach ($comments as $comment)
-        {
+        foreach ($comments as $comment) {
             $result[$counter]['id'] = $comment->comment_ID;
             $userFullName = $this->getUserFullName($comment->user_id);
-            if(!$userFullName)
+            if (!$userFullName)
                 $userFullName = $comment->comment_author;
             $result[$counter]['user'] = $userFullName;
             $result[$counter]['content'] = $comment->comment_content;
@@ -214,9 +236,8 @@ class PostController extends Controller
         $last_name = UsersMeta::where('user_id', $user_id)
             ->where('meta_key', 'last_name')->first();
 
-        if($first_name and $last_name)
-        {
-            return $first_name->meta_value. ' ' .$last_name->meta_value;
+        if ($first_name and $last_name) {
+            return $first_name->meta_value . ' ' . $last_name->meta_value;
         }
 
     }
@@ -230,10 +251,8 @@ class PostController extends Controller
         $arr = array();
         $i = 0;
 
-        foreach ($attrs as $attr)
-        {
-            if($attr['is_variation'] != 1)
-            {
+        foreach ($attrs as $attr) {
+            if ($attr['is_variation'] != 1) {
                 $arr[$i]['attr_name'] = $attr['name'];
                 $arr[$i]['attr_value'] = $attr['value'];
                 $i++;
@@ -269,23 +288,18 @@ class PostController extends Controller
 
             $meta = ProductsMeta::where('post_id', $var->ID)
                 ->where('meta_key', '_regular_price')->first();
-            if($meta)
-            {
+            if ($meta) {
                 return $meta->meta_value;
-            }
-            else
-            {
+            } else {
                 $meta_price = ProductsMeta::where('post_id', $var->ID)
                     ->where('meta_key', '_price')->first();
-                if($meta_price)
+                if ($meta_price)
                     return $meta_price->meta_value;
                 else
                     return 0;
             }
 
-        }
-        else
-        {
+        } else {
             $meta = ProductsMeta::where('post_id', $post->ID)
                 ->where('meta_key', '_regular_price')->first();
             return $meta->meta_value;
@@ -300,18 +314,13 @@ class PostController extends Controller
 
             $meta = ProductsMeta::where('post_id', $var->ID)
                 ->where('meta_key', '_offer_price')->first();
-            if($meta)
-            {
+            if ($meta) {
                 return $meta->meta_value;
-            }
-            else
-            {
+            } else {
                 return 0;
             }
 
-        }
-        else
-        {
+        } else {
             $meta = ProductsMeta::where('post_id', $post->ID)
                 ->where('meta_key', '_main_offer_price')->first();
             return $meta->meta_value;
@@ -335,16 +344,30 @@ class PostController extends Controller
         $to = ProductsMeta::where('post_id', $post->ID)
             ->where('meta_key', '_sale_price_dates_to')->first()->meta_value;
 
-        if (is_numeric($to) and is_numeric($from)) {
-            $diff = $to - $from;
-            if ($diff) {
-                $deadline = \DateTime::createFromFormat('YmdGis', $diff);
-                if ($deadline)
-                    return $deadline;//->format('Y-m-d G:i:s');
-                else
-                    return 0;
-            }
-        } else
+        if($from == '' || empty($from) || $from == null)
+        {
             return 0;
+        }
+        else
+        {
+            $long = strtotime(Carbon::now());
+            return $to - $long;
+        }
     }
+
+    public function getPurchaseDeadlineDate($product_id)
+    {
+        $to = ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', '_sale_price_dates_to')->first()->meta_value;
+        if($to)
+        {
+            return date('Y-m-d H:i:s', (int)$to);
+        }
+        else
+        {
+            return 'Expired';
+        }
+
+    }
+
 }
