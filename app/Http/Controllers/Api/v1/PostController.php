@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Resources\Api\v1\ProductSummary;
+use App\Models\v1\Comments;
 use App\Models\v1\Products;
 use App\Models\v1\ProductsMeta;
+use App\Models\v1\UsersMeta;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
@@ -80,8 +82,7 @@ class PostController extends Controller
 
         $product_cats = array();
         $counter = 0;
-        foreach ($cats as $cat)
-        {
+        foreach ($cats as $cat) {
             $product_cats[$counter]['category_id'] = $cat->term_id;
             $product_cats[$counter]['category_title'] = $cat->name;
             $counter++;
@@ -100,8 +101,7 @@ class PostController extends Controller
 
         $product_cities = array();
         $counter = 0;
-        foreach ($cities as $city)
-        {
+        foreach ($cities as $city) {
             $product_cities[$counter]['city_id'] = $city->term_id;
             $product_cities[$counter]['city_title'] = $city->name;
             $counter++;
@@ -133,9 +133,114 @@ class PostController extends Controller
         );
     }
 
-    public function single(Request $request)
+    public function get_single(Request $request)
     {
+        $products = ProductSummary::collection(Products::all()
+            ->where('post_type', 'product')
+            ->where('post_status', 'publish'))
+            ->where('ID', $request->product_id);
 
+        $result = array();
+        $counter = 0;
+
+        foreach ($products as $product) {
+            $post = Products::where('ID', $product->ID)
+                ->where('post_type', 'product')->first();
+
+            $offerProductPrice = $this->getOfferProductPrice($post);
+            $regularProductPrice = $this->getRegularProductPrice($post);
+            $offer_percent = $this->getOfferPercent($offerProductPrice, $regularProductPrice);
+            $total_sales = $this->getTotalSales($post);
+            $deadline = $this->getDeadline($post);
+            $categories = $this->get_categoriesByProductID($product->ID);
+            $cities = $this->get_citiesByProductID($product->ID);
+            $attributes = $this->getAttributesByProductID($product->ID);
+            $comments = $this->getCommentByProductID($product->ID);
+
+            $result[$counter]['id'] = $product->ID;
+            $result[$counter]['title'] = $product->post_title;
+            $result[$counter]['description'] = $product->post_excerpt;
+            $result[$counter]['regular_price'] = $regularProductPrice;
+            $result[$counter]['offer_price'] = $offerProductPrice;
+            $result[$counter]['offer_percent'] = $offer_percent;
+            $result[$counter]['total_sales'] = $total_sales;
+            $result[$counter]['deadline'] = $deadline;
+            $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
+            $result[$counter]['status'] = 'Active';
+            $result[$counter]['category'] = $categories;
+            $result[$counter]['attributes'] = $attributes;
+            $result[$counter]['comments'] = $comments;
+            $result[$counter]['city'] = $cities;
+            $result[$counter]['address'] = $this->getAddress($product->ID);
+            $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
+            $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
+
+            $counter++;
+        }
+
+        return json_encode(
+            $result
+        );
+
+    }
+
+    public function getCommentByProductID($product_id)
+    {
+        $comments = Comments::all()->where('user_id', '<>', '0')
+            ->where('comment_post_ID', $product_id);
+        $result = array();
+        $counter = 0;
+
+        foreach ($comments as $comment)
+        {
+            $result[$counter]['id'] = $comment->comment_ID;
+            $userFullName = $this->getUserFullName($comment->user_id);
+            if(!$userFullName)
+                $userFullName = $comment->comment_author;
+            $result[$counter]['user'] = $userFullName;
+            $result[$counter]['content'] = $comment->comment_content;
+            $result[$counter]['comment_date'] = $comment->comment_date;
+            $counter++;
+        }
+
+        return $result;
+    }
+
+    public function getUserFullName($user_id)
+    {
+        $first_name = UsersMeta::where('user_id', $user_id)
+            ->where('meta_key', 'first_name')->first();
+
+        $last_name = UsersMeta::where('user_id', $user_id)
+            ->where('meta_key', 'last_name')->first();
+
+        if($first_name and $last_name)
+        {
+            return $first_name->meta_value. ' ' .$last_name->meta_value;
+        }
+
+    }
+
+    public function getAttributesByProductID($product_id)
+    {
+        $post_attr = ProductsMeta::where('post_id', $product_id)
+            ->where('meta_key', '_product_attributes')->first();
+
+        $attrs = unserialize($post_attr->meta_value);
+        $arr = array();
+        $i = 0;
+
+        foreach ($attrs as $attr)
+        {
+            if($attr['is_variation'] != 1)
+            {
+                $arr[$i]['attr_name'] = $attr['name'];
+                $arr[$i]['attr_value'] = $attr['value'];
+                $i++;
+            }
+        }
+
+        return $arr;
     }
 
     public function getOfferPercent($offerProductPrice, $regularProductPrice)
@@ -158,29 +263,59 @@ class PostController extends Controller
 
     public function getRegularProductPrice($post)
     {
-        $meta = ProductsMeta::where('post_id', $post->ID)
-            ->where('meta_key', '_regular_price')->first();
-        if ($meta)
-            return $meta->meta_value;
+        $var = Products::where('post_parent', $post->ID)
+            ->where('post_type', 'product_variation')->first();
+        if ($var) {
+
+            $meta = ProductsMeta::where('post_id', $var->ID)
+                ->where('meta_key', '_regular_price')->first();
+            if($meta)
+            {
+                return $meta->meta_value;
+            }
+            else
+            {
+                $meta_price = ProductsMeta::where('post_id', $var->ID)
+                    ->where('meta_key', '_price')->first();
+                if($meta_price)
+                    return $meta_price->meta_value;
+                else
+                    return 0;
+            }
+
+        }
         else
         {
-            $variation = Products::where('post_parent', $post->ID)
-                ->where('post_type', 'product_variation')->first();
-
-            $var_meta = ProductsMeta::where('post_id', $variation->ID)
+            $meta = ProductsMeta::where('post_id', $post->ID)
                 ->where('meta_key', '_regular_price')->first();
-            return $var_meta->meta_value;
+            return $meta->meta_value;
         }
     }
 
     public function getOfferProductPrice($post)
     {
-        $meta = ProductsMeta::where('post_id', $post->ID)
-            ->where('meta_key', '_main_offer_price')->first();
-        if ($meta)
-            return $meta->meta_value;
+        $var = Products::where('post_parent', $post->ID)
+            ->where('post_type', 'product_variation')->first();
+        if ($var) {
+
+            $meta = ProductsMeta::where('post_id', $var->ID)
+                ->where('meta_key', '_offer_price')->first();
+            if($meta)
+            {
+                return $meta->meta_value;
+            }
+            else
+            {
+                return 0;
+            }
+
+        }
         else
-            return 0;
+        {
+            $meta = ProductsMeta::where('post_id', $post->ID)
+                ->where('meta_key', '_main_offer_price')->first();
+            return $meta->meta_value;
+        }
     }
 
     public function getTotalSales($post)
