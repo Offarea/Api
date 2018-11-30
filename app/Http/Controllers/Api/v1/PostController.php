@@ -35,7 +35,11 @@ class PostController extends Controller
             $categories = $this->get_categoriesByProductID($product->ID);
             $cities = $this->get_citiesByProductID($product->ID);
             $location = $this->get_locationByProductID($product->ID);
-
+            $purchaseDeadlineDate = $this->getPurchaseDeadlineDate($product->ID);
+            if($purchaseDeadlineDate == 'Expired')
+                $status = 'Deactive';
+            else
+                $status = 'Active';
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
             $result[$counter]['description'] = $product->post_excerpt;
@@ -44,15 +48,12 @@ class PostController extends Controller
             $result[$counter]['offer_percent'] = $offer_percent;
             $result[$counter]['total_sales'] = $total_sales;
             $result[$counter]['deadline_in_seconds'] = $deadline;
-            $result[$counter]['purchase_expire_date'] = $this->getPurchaseDeadlineDate($product->ID);
+            $result[$counter]['purchase_expire_date'] = $purchaseDeadlineDate;
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
-            $result[$counter]['status'] = 'Active';
+            $result[$counter]['status'] = $status;
             $result[$counter]['category'] = $categories;
             $result[$counter]['city'] = $cities;
-            $result[$counter]['address'] = $this->getAddress($product->ID);
-            $result[$counter]['location'] = $location;
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
-            $result[$counter]['image_gallery_url'] = '';
 
             $counter++;
         }
@@ -178,18 +179,26 @@ class PostController extends Controller
             $cities = $this->get_citiesByProductID($product->ID);
             $attributes = $this->getAttributesByProductID($product->ID);
             $comments = $this->getCommentByProductID($product->ID);
+            $purchaseDeadlineDate = $this->getPurchaseDeadlineDate($product->ID);
+            if($purchaseDeadlineDate == 'Expired')
+                $status = 'Deactive';
+            else
+                $status = 'Active';
+
+            $variations = $this->getVariationsByProductID($product->ID);
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
             $result[$counter]['description'] = $product->post_excerpt;
+            $result[$counter]['content'] = 'N/A';
             $result[$counter]['regular_price'] = $regularProductPrice;
             $result[$counter]['offer_price'] = $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
             $result[$counter]['total_sales'] = $total_sales;
             $result[$counter]['deadline'] = $deadline;
-            $result[$counter]['purchase_expire_date'] = $this->getPurchaseDeadlineDate($product->ID);
+            $result[$counter]['purchase_expire_date'] = $purchaseDeadlineDate;
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
-            $result[$counter]['status'] = 'Active';
+            $result[$counter]['status'] = $status;
             $result[$counter]['category'] = $categories;
             $result[$counter]['attributes'] = $attributes;
             $result[$counter]['comments'] = $comments;
@@ -197,6 +206,8 @@ class PostController extends Controller
             $result[$counter]['address'] = $this->getAddress($product->ID);
             $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
+            $result[$counter]['image_gallery_url'] = 'N/A';
+            $result[$counter]['variations'] = $variations;
 
             $counter++;
         }
@@ -204,7 +215,49 @@ class PostController extends Controller
         return json_encode(
             $result
         );
+    }
 
+    public function getVariationsByProductID($product_id)
+    {
+        $variations = DB::select("select * from wp_posts
+                                  where  post_type = 'product_variation' 
+                                  and post_parent =  ".$product_id );
+
+        $product_variations = array();
+        $i = 0;
+        foreach ($variations as $variation)
+        {
+            $price = $this->getVariationPriceByID($variation->ID);
+            $offer_price = $this->getVariationOfferPriceByID($variation->ID);
+
+            $product_variations[$i]['id'] = $variation->ID;
+            $product_variations[$i]['name'] = $this->getVariationNameByID($variation->ID);
+            $product_variations[$i]['offer_price'] = $offer_price;
+            $product_variations[$i]['offer_percent'] = $this->getOfferPercent($offer_price, $price);
+            $i++;
+        }
+
+        return
+            $product_variations;
+
+    }
+
+    public function getVariationNameByID($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_sku')->first()->meta_value;
+    }
+
+    public function getVariationPriceByID($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_price')->first()->meta_value;
+    }
+
+    public function getVariationOfferPriceByID($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_offer_price')->first()->meta_value;
     }
 
     public function getCommentByProductID($product_id)
