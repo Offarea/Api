@@ -185,12 +185,13 @@ class PostController extends Controller
             else
                 $status = 'Active';
 
+            $image_galley = $this->getImageGalleryByProductID($product->ID);
             $variations = $this->getVariationsByProductID($product->ID);
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
             $result[$counter]['description'] = $product->post_excerpt;
-            $result[$counter]['content'] = 'N/A';
+            $result[$counter]['content'] = $post->post_content;
             $result[$counter]['regular_price'] = $regularProductPrice;
             $result[$counter]['offer_price'] = $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
@@ -204,17 +205,39 @@ class PostController extends Controller
             $result[$counter]['comments'] = $comments;
             $result[$counter]['city'] = $cities;
             $result[$counter]['address'] = $this->getAddress($product->ID);
-            $result[$counter]['location'] = array('langitude' => '', 'latitude' => '');
+            $result[$counter]['location'] = array('langitude' => $this->getLongitude($product->ID), 'latitude' => $this->getLatitude($product->ID));
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
-            $result[$counter]['image_gallery_url'] = 'N/A';
+            $result[$counter]['image_gallery_urls'] = $image_galley;
             $result[$counter]['variations'] = $variations;
 
             $counter++;
         }
 
+        $object = (object)$result;
+
         return json_encode(
-            $result
+            $object
         );
+    }
+
+    public function getImageGalleryByProductID($product_id)
+    {
+        $id_string = ProductsMeta::where('post_id', $product_id)
+        ->where('meta_key', '_product_image_gallery')->first()->meta_value;
+
+        $ids = explode (",", $id_string);
+
+        $urls = array();
+        $i = 0;
+
+        foreach ($ids as $id)
+        {
+            $address = ProductsMeta::where('post_id', $id)
+                ->where('meta_key', '_wp_attached_file')->first()->meta_value;
+            $urls[$i]['url'] = 'https://offarea.ir/wp-content/uploads/'.$address;
+            $i++;
+        }
+        return $urls;
     }
 
     public function getVariationsByProductID($product_id)
@@ -246,6 +269,18 @@ class PostController extends Controller
     {
         return ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_sku')->first()->meta_value;
+    }
+
+    public function getLongitude($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_longitude')->first()->meta_value;
+    }
+
+    public function getLatitude($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_latitude')->first()->meta_value;
     }
 
     public function getVariationPriceByID($id)
