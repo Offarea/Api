@@ -26,7 +26,6 @@ Route::prefix('v1/product')->namespace('Api\v1')->group(function ()
     Route::post('/single/{product_id}', 'PostController@get_single');
     Route::post('/categories', 'PostController@get_categories');
     Route::post('/cities', 'PostController@get_cities');
-    Route::post('/test', 'PostController@test');
 });
 
 Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()
@@ -39,7 +38,8 @@ Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()
 
 Route::prefix('v1/order')->namespace('Api\v1')->group(function ()
 {
-
+    Route::post('/customer_orders/{user_id}', 'OrderController@get_customer_orders');
+    Route::get('/orders_status', 'OrderController@get_orders_status');
 });
 
 Route::prefix('v1/vendor')->namespace('Api\v1')->group(function ()
