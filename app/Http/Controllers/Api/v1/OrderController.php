@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api\v1;
 
+use App\Models\v1\Products;
 use App\Models\v1\ProductsMeta;
 use App\Models\v1\Users;
 use App\Models\v1\UsersMeta;
+use App\Models\v1\WooCommerceOrder;
+use App\Models\v1\WooCommerceOrderMeta;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -51,9 +54,9 @@ class OrderController extends Controller
             $vendor = Users::where('ID', $vendor_id->meta_value)->first();
 
             $first_name = UsersMeta::where('user_id', $vendor->ID)
-                ->where('meta_key', 'billing_first_name')->first();;
+                ->where('meta_key', 'billing_first_name')->first();
             $last_name = UsersMeta::where('user_id', $vendor->ID)
-                ->where('meta_key', 'billing_last_name')->first();;
+                ->where('meta_key', 'billing_last_name')->first();
 
             if($first_name and $last_name)
             {
@@ -61,15 +64,61 @@ class OrderController extends Controller
             }
             else
             {
-                return 'بدون نام';
+                $order_item_id = WooCommerceOrder::where('order_id', $id)
+                    ->where('order_item_type', 'line_item')->first()->order_item_id;
+                if($order_item_id)
+                {
+                    $order_item_meta_product_id =
+                        WooCommerceOrderMeta::where('order_item_id', $order_item_id)
+                            ->where('meta_key', '_product_id')->first();
+                    if($order_item_meta_product_id)
+                    {
+                        $post_author = Products::where('ID', $order_item_meta_product_id->meta_value)->first();
+                        if($post_author)
+                        {
+                            return $this->getUserName($post_author->post_author);
+                        }
+
+                    }
+                }
+
             }
         }
         else
         {
-            return 'بدون نام';
+            $order_item_id = WooCommerceOrder::where('order_id', $id)
+            ->where('order_item_type', 'line_item')->first()->order_item_id;
+                if($order_item_id)
+                {
+                    $order_item_meta_product_id =
+                        WooCommerceOrderMeta::where('order_item_id', $order_item_id)
+                            ->where('meta_key', '_product_id')->first();
+                    if($order_item_meta_product_id)
+                    {
+                        $post_author = Products::where('ID', $order_item_meta_product_id->meta_value)->first();
+                        if($post_author)
+                        {
+                            return $this->getUserName($post_author->post_author);
+                        }
+
+                    }
+                }
         }
 
 
+    }
+
+    public function getUserName($id)
+    {
+        $first_name = UsersMeta::where('user_id', $id)
+            ->where('meta_key', 'billing_first_name')->first();
+        $last_name = UsersMeta::where('user_id', $id)
+            ->where('meta_key', 'billing_last_name')->first();
+
+        if($first_name and $last_name)
+        {
+            return $first_name->meta_value . ' ' . $last_name->meta_value;
+        }
     }
 
     public function get_order_status()
