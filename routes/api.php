@@ -39,6 +39,7 @@ Route::prefix('v1/cart')->namespace('Api\v1')->group(function ()
 Route::prefix('v1/order')->namespace('Api\v1')->group(function ()
 {
     Route::post('/customer_orders/{user_id}', 'OrderController@get_customer_orders');
+    Route::post('/order_details/{order_id}', 'OrderController@get_order_details');
     Route::get('/orders_status', 'OrderController@get_orders_status');
 });
 
