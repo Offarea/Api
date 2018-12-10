@@ -53,6 +53,11 @@ class PostController extends Controller
             $result[$counter]['status'] = $status;
             $result[$counter]['category'] = $categories;
             $result[$counter]['city'] = $cities;
+
+            $result[$counter]['short_address'] = $this->getShortAddressByID($product->ID);
+            $result[$counter]['work_hours'] = $this->getWorkHoursByID($product->ID);
+            $result[$counter]['work_phone'] = $this->getWorkPhoneByID($product->ID);
+
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
 
             $counter++;
@@ -205,6 +210,11 @@ class PostController extends Controller
             $result[$counter]['comments'] = $comments;
             $result[$counter]['city'] = $cities;
             $result[$counter]['address'] = $this->getAddress($product->ID);
+
+            $result[$counter]['short_address'] = $this->getShortAddressByID($product->ID);
+            $result[$counter]['work_hours'] = $this->getWorkHoursByID($product->ID);
+            $result[$counter]['work_phone'] = $this->getWorkPhoneByID($product->ID);
+
             $result[$counter]['location'] = array('langitude' => $this->getLongitude($product->ID), 'latitude' => $this->getLatitude($product->ID));
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
             $result[$counter]['image_gallery_urls'] = $image_galley;
@@ -287,6 +297,34 @@ class PostController extends Controller
     {
         return ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_price')->first()->meta_value;
+    }
+
+    public function getShortAddressByID($id)
+    {
+        $meta = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_short_address')->first();
+        if($meta)
+            return $meta->meta_value;
+        else
+            return '';
+    }
+    public function getWorkHoursByID($id)
+    {
+        $meta = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_work_hours')->first();
+        if($meta)
+            return $meta->meta_value;
+        else
+            return '';
+    }
+    public function getWorkPhoneByID($id)
+    {
+        $meta = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_work_phone')->first();
+        if($meta)
+            return $meta->meta_value;
+        else
+            return '';
     }
 
     public function getVariationOfferPriceByID($id)
@@ -411,7 +449,15 @@ class PostController extends Controller
         } else {
             $meta = ProductsMeta::where('post_id', $post->ID)
                 ->where('meta_key', '_main_offer_price')->first();
-            return $meta->meta_value;
+            if($meta)
+            {
+                return $meta->meta_value;
+            }
+            else
+            {
+                return 0;
+            }
+
         }
     }
 

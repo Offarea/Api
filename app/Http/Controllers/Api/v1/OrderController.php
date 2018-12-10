@@ -339,4 +339,33 @@ class OrderController extends Controller
         return ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_transaction_id')->first()->meta_value;
     }
+
+    public function create_order(Request $request)
+    {
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://offarea.ir/wp-json/wc/v2/orders",
+            CURLOPT_RETURNTRANSFER=>true,
+            CURLOPT_CUSTOMREQUEST => "Post",
+            CURLOPT_POSTFIELDS => "",
+            CURLOPT_HTTPHEADER => array(
+                "Authorization: XYC6yzl6Vs9sUdHEKXybxf9x19e6KuypcdpsTCdo",
+                "Username: ck_7a799266624cc33221e57210300ba826f85b4b70",
+                "Password: cs_37108a4291f7c6e3cf313a0f4c41e9cc03bd9201"
+            ),
+        ));
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+        curl_close($curl);
+
+        $result = json_decode($response, true)['data'];
+        foreach($result as $key => $value) {
+            echo $key." : ".$value;
+            echo "<br>";
+        }
+    }
 }
+
+
+
+

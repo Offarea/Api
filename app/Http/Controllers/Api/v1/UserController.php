@@ -50,25 +50,6 @@ class UserController extends Controller
         // close connection
         curl_close($ch);
 
-        if ($result) {
-            $user = Users::where('user_login', $request->username)->first();
-            $meta = UsersMeta::where('meta_key', 'api_token')->where('user_id', $user->ID)->first();
-            $data = array(
-                'status' => 1,
-                'message' => 'با موفقیت وارد شدید',
-                'result' => array(
-                    'user' => array(
-                        'name' => $user->display_name,
-                        'apiToken' => $meta->meta_value,
-                        'roles' => 1
-                    )
-
-                )
-                );
-            return \response(
-                json_encode($data)
-            );
-        }
 
 
     }
