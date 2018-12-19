@@ -6,11 +6,14 @@ use App\Http\Resources\Api\v1\ProductSummary;
 use App\Models\v1\Comments;
 use App\Models\v1\Products;
 use App\Models\v1\ProductsMeta;
+use App\Models\v1\Users;
 use App\Models\v1\UsersMeta;
+use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class PostController extends Controller
 {
@@ -24,6 +27,8 @@ class PostController extends Controller
         $counter = 0;
 
         foreach ($products as $product) {
+
+
             $post = Products::where('ID', $product->ID)
                 ->where('post_type', 'product')->first();
 
@@ -36,21 +41,21 @@ class PostController extends Controller
             $cities = $this->get_citiesByProductID($product->ID);
             $location = $this->get_locationByProductID($product->ID);
             $purchaseDeadlineDate = $this->getPurchaseDeadlineDate($product->ID);
-            if($purchaseDeadlineDate == 'Expired')
+            if ($purchaseDeadlineDate == 'Expired')
                 $status = 'Deactive';
             else
                 $status = 'Active';
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
-            $result[$counter]['description'] = $product->post_excerpt;
-            $result[$counter]['regular_price'] = $regularProductPrice;
-            $result[$counter]['offer_price'] = $offerProductPrice;
+            $result[$counter]['description'] = $this->get_description($product->ID);
+            $result[$counter]['regular_price'] = (float) $regularProductPrice;
+            $result[$counter]['offer_price'] = (float) $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
-            $result[$counter]['total_sales'] = $total_sales;
+            $result[$counter]['total_sales'] = (int)$total_sales;
             $result[$counter]['deadline_in_seconds'] = $deadline;
             $result[$counter]['purchase_expire_date'] = $purchaseDeadlineDate;
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
-            $result[$counter]['status'] = $status;
+            $result[$counter]['offer_status'] = $status;
             $result[$counter]['category'] = $categories;
             $result[$counter]['city'] = $cities;
 
@@ -60,11 +65,43 @@ class PostController extends Controller
 
             $result[$counter]['image_url'] = $this->findProductImageUrlByID($product->ID);
 
+
             $counter++;
         }
 
+        // Get current page form url e.x. &page=1
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // Create a new Laravel collection from the array data
+        $itemCollection = collect($result);
+
+        // Define how many items we want to be visible in each page
+        $perPage = 10;
+
+        // Slice the collection to get the items to display in current page
+        $currentPageItems = $itemCollection->slice(($currentPage * $perPage) - $perPage, $perPage)->all();
+
+        // Create our paginator and pass it to the view
+        $paginatedItems = new LengthAwarePaginator($currentPageItems, count($itemCollection), $perPage);
+
+        // set url path for generted links
+        $paginatedItems->setPath($request->url());
+
+        $allOffers = array(
+            'allOffers' => $paginatedItems
+        );
+
+        $data = array
+        (
+            'status' => 1,
+            'message' => 'تمامی محصولات با موفقیت واکشی شد',
+            'result' => $allOffers
+
+
+        );
+
         return json_encode(
-            $result
+            $data
         );
 
     }
@@ -91,6 +128,12 @@ class PostController extends Controller
     {
         return ProductsMeta::where('post_id', $product_id)
             ->where('meta_key', 'melocate')->first()->meta_value;
+    }
+
+    public function get_description($id)
+    {
+        return ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_api_descr')->first()->meta_value;
     }
 
     public function getBarcodeExpireDate($product_id)
@@ -184,8 +227,9 @@ class PostController extends Controller
             $cities = $this->get_citiesByProductID($product->ID);
             $attributes = $this->getAttributesByProductID($product->ID);
             $comments = $this->getCommentByProductID($product->ID);
+            $vendor = $this->get_vendor($product->ID);
             $purchaseDeadlineDate = $this->getPurchaseDeadlineDate($product->ID);
-            if($purchaseDeadlineDate == 'Expired')
+            if ($purchaseDeadlineDate == 'Expired')
                 $status = 'Deactive';
             else
                 $status = 'Active';
@@ -195,16 +239,23 @@ class PostController extends Controller
 
             $result[$counter]['id'] = $product->ID;
             $result[$counter]['title'] = $product->post_title;
-            $result[$counter]['description'] = $product->post_excerpt;
-            $result[$counter]['content'] = $post->post_content;
-            $result[$counter]['regular_price'] = $regularProductPrice;
-            $result[$counter]['offer_price'] = $offerProductPrice;
+            $result[$counter]['description'] = $this->get_description($product->ID);
+            $result[$counter]['content'] = $this->get_PostContent($product->ID);
+            $result[$counter]['offer_type'] = 'variable';
+            $result[$counter]['regular_price'] = (float) $regularProductPrice;
+            $result[$counter]['offer_price'] = (float) $offerProductPrice;
             $result[$counter]['offer_percent'] = $offer_percent;
-            $result[$counter]['total_sales'] = $total_sales;
+            $result[$counter]['total_sales'] = (int)$total_sales;
             $result[$counter]['deadline'] = $deadline;
             $result[$counter]['purchase_expire_date'] = $purchaseDeadlineDate;
             $result[$counter]['barcode_expire_date'] = $this->getBarcodeExpireDate($product->ID);
-            $result[$counter]['status'] = $status;
+            $result[$counter]['offer_status'] = $status;
+            $result[$counter]['on_sales_count'] = 0;
+            $result[$counter]['remain_count'] = 0;
+
+            $result[$counter]['vendor'] = $vendor;
+
+
             $result[$counter]['category'] = $categories;
             $result[$counter]['attributes'] = $attributes;
             $result[$counter]['comments'] = $comments;
@@ -223,28 +274,35 @@ class PostController extends Controller
             $counter++;
         }
 
-        $object = (object)$result;
+        $singleOffer = array(
+            'singleOffer' => $result[0]
+        );
+        $data = array
+        (
+            'status' => 1,
+            'message' => 'محصول مورد نظر با موفقیت واکشی شد',
+            'result' => $singleOffer
+        );
 
         return json_encode(
-            $object
+            $data
         );
     }
 
     public function getImageGalleryByProductID($product_id)
     {
         $id_string = ProductsMeta::where('post_id', $product_id)
-        ->where('meta_key', '_product_image_gallery')->first()->meta_value;
+            ->where('meta_key', '_product_image_gallery')->first()->meta_value;
 
-        $ids = explode (",", $id_string);
+        $ids = explode(",", $id_string);
 
         $urls = array();
         $i = 0;
 
-        foreach ($ids as $id)
-        {
+        foreach ($ids as $id) {
             $address = ProductsMeta::where('post_id', $id)
                 ->where('meta_key', '_wp_attached_file')->first()->meta_value;
-            $urls[$i]['url'] = 'https://offarea.ir/wp-content/uploads/'.$address;
+            $urls[$i]['url'] = 'https://offarea.ir/wp-content/uploads/' . $address;
             $i++;
         }
         return $urls;
@@ -254,12 +312,11 @@ class PostController extends Controller
     {
         $variations = DB::select("select * from wp_posts
                                   where  post_type = 'product_variation' 
-                                  and post_parent =  ".$product_id );
+                                  and post_parent =  " . $product_id);
 
         $product_variations = array();
         $i = 0;
-        foreach ($variations as $variation)
-        {
+        foreach ($variations as $variation) {
             $price = $this->getVariationPriceByID($variation->ID);
             $offer_price = $this->getVariationOfferPriceByID($variation->ID);
 
@@ -267,6 +324,8 @@ class PostController extends Controller
             $product_variations[$i]['name'] = $this->getVariationNameByID($variation->ID);
             $product_variations[$i]['offer_price'] = $offer_price;
             $product_variations[$i]['offer_percent'] = $this->getOfferPercent($offer_price, $price);
+            $product_variations[$i]['on_sales_count'] = 0;
+            $product_variations[$i]['remain_count'] = 0;
             $i++;
         }
 
@@ -281,6 +340,27 @@ class PostController extends Controller
             ->where('meta_key', '_sku')->first()->meta_value;
     }
 
+    public function get_StockStatus($id)
+    {
+        $staus = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_stock_status')->first();
+        if($staus)
+        {
+            if($staus->meta_value == 'instock')
+                return 'پیشنهاد موجود می باشد';
+            else if($staus->meta_value == 'outofstock')
+                return 'پیشنهاد به اتمام رسیده است';
+        }
+    }
+    public function get_PostContent($id)
+    {
+        $meta = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_api_content')->first();
+        if($meta)
+            return $meta->meta_value;
+        else
+            return 'محتوی ندارد';
+    }
     public function getLongitude($id)
     {
         return ProductsMeta::where('post_id', $id)
@@ -303,25 +383,27 @@ class PostController extends Controller
     {
         $meta = ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_short_address')->first();
-        if($meta)
+        if ($meta)
             return $meta->meta_value;
         else
             return '';
     }
+
     public function getWorkHoursByID($id)
     {
         $meta = ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_work_hours')->first();
-        if($meta)
+        if ($meta)
             return $meta->meta_value;
         else
             return '';
     }
+
     public function getWorkPhoneByID($id)
     {
         $meta = ProductsMeta::where('post_id', $id)
             ->where('meta_key', '_work_phone')->first();
-        if($meta)
+        if ($meta)
             return $meta->meta_value;
         else
             return '';
@@ -354,6 +436,21 @@ class PostController extends Controller
         return $result;
     }
 
+    public function get_vendor($id)
+    {
+        $post_id = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_woo_vou_vendor_user')->first();
+        if($post_id)
+        {
+            $user_id = $post_id->meta_value;
+            $user = Users::where('ID', $user_id)->first();
+            if($user)
+            {
+                $name = $this->getUserFullName($user_id);
+                return array('id'=> $user_id, 'vendor_name'=> $name);
+            }
+        }
+    }
     public function getUserFullName($user_id)
     {
         $first_name = UsersMeta::where('user_id', $user_id)
@@ -449,12 +546,9 @@ class PostController extends Controller
         } else {
             $meta = ProductsMeta::where('post_id', $post->ID)
                 ->where('meta_key', '_main_offer_price')->first();
-            if($meta)
-            {
+            if ($meta) {
                 return $meta->meta_value;
-            }
-            else
-            {
+            } else {
                 return 0;
             }
 
@@ -478,12 +572,9 @@ class PostController extends Controller
         $to = ProductsMeta::where('post_id', $post->ID)
             ->where('meta_key', '_sale_price_dates_to')->first()->meta_value;
 
-        if($from == '' || empty($from) || $from == null)
-        {
+        if ($from == '' || empty($from) || $from == null) {
             return 0;
-        }
-        else
-        {
+        } else {
             $long = strtotime(Carbon::now());
             return $to - $long;
         }
@@ -493,12 +584,9 @@ class PostController extends Controller
     {
         $to = ProductsMeta::where('post_id', $product_id)
             ->where('meta_key', '_sale_price_dates_to')->first()->meta_value;
-        if($to)
-        {
+        if ($to) {
             return date('Y-m-d H:i:s', (int)$to);
-        }
-        else
-        {
+        } else {
             return 'Expired';
         }
 
