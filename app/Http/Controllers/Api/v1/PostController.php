@@ -132,8 +132,12 @@ class PostController extends Controller
 
     public function get_description($id)
     {
-        return ProductsMeta::where('post_id', $id)
-            ->where('meta_key', '_api_descr')->first()->meta_value;
+        $meta = ProductsMeta::where('post_id', $id)
+            ->where('meta_key', '_api_descr')->first();
+        if ($meta)
+        {
+            return $meta->meta_value;
+        }
     }
 
     public function getBarcodeExpireDate($product_id)
